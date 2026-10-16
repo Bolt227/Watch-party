@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watch Party</title>
+<style>
+:root{
+  --ink:#17131f; --panel:#211b2d; --panel2:#2a2339; --line:#3a3050; --text:#f0eaf8; --muted:#a094b8;
+  --marquee:#ffc83d; --ok:#62d9a5; --bad:#ff6b7a; --radius:10px;
+  --serif:"Iowan Old Style","Palatino Linotype",Georgia,serif; --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--text);font:15px/1.45 var(--sans)}
+button,input,textarea,select{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--marquee)}
+button.primary{background:var(--marquee);color:#1d1500;border-color:var(--marquee);font-weight:600}
+button.ghost{background:transparent}
+button.sm{padding:3px 8px;font-size:13px}
+:focus-visible{outline:2px solid var(--marquee);outline-offset:2px}
+input,textarea,select{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.hidden{display:none!important}
+.muted{color:var(--muted)}
+
+/* lobby */
+#lobby{min-height:100vh;display:grid;place-items:center;padding:24px}
+.ticket{width:min(440px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px;position:relative}
+.ticket h1{font:600 34px/1.1 var(--serif);margin:0 0 6px}
+.ticket .row{display:flex;gap:8px;margin-top:10px}
+.ticket hr{border:0;border-top:2px dashed var(--line);margin:22px -28px}
+#lobbyErr{color:var(--bad);min-height:20px;margin-top:10px}
+
+/* app shell */
+#app{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+header{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h2{font:600 22px var(--serif);margin:0;margin-right:auto}
+.stub{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px dashed var(--marquee);border-radius:8px;padding:4px 6px 4px 12px}
+.stub b{font:700 20px var(--serif);letter-spacing:.12em;color:var(--marquee)}
+#banner{grid-column:1/-1;background:var(--bad);color:#2b0007;padding:8px 12px;border-radius:8px;font-weight:600}
+.stage{position:relative;background:#000;border-radius:var(--radius);overflow:hidden;aspect-ratio:16/9}
+video{width:100%;height:100%;display:block;background:#000}
+#floaters{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.float{position:absolute;bottom:56px;font-size:34px;animation:rise 2.6s ease-out forwards}
+.float small{display:block;font-size:11px;text-align:center;color:#fff;text-shadow:0 1px 2px #000}
+@keyframes rise{from{transform:translateY(0);opacity:1}to{transform:translateY(-260px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.float{animation:fade 2s forwards}@keyframes fade{to{opacity:0}}}
+#unlock{position:absolute;inset:0;background:rgba(0,0,0,.7);display:grid;place-items:center}
+.nowrow{display:flex;gap:10px;align-items:center;margin:10px 0 6px;flex-wrap:wrap}
+.nowrow h3{margin:0;font:600 20px var(--serif);margin-right:auto}
+#heat{width:100%;height:46px;display:block;background:var(--panel);border-radius:8px;cursor:pointer}
+.reacts{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.reacts button{font-size:20px;padding:4px 10px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:10px;flex-wrap:wrap}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:6px 10px;color:var(--muted)}
+.tabs button.on{color:var(--marquee);border-color:var(--marquee)}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px;display:flex;flex-direction:column;min-height:480px;max-height:calc(100vh - 100px);position:sticky;top:12px}
+.pane{flex:1;overflow:auto;min-height:0}
+#chatLog{display:flex;flex-direction:column;gap:6px}
+.msg b{color:var(--marquee)} .msg.sys{color:var(--muted);font-style:italic;font-size:13px}
+.chatForm{display:flex;gap:6px;margin-top:8px}
+.item{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;background:var(--panel2)}
+.item .grow{flex:1;min-width:0}.item .grow div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}.dot.off{background:var(--muted)}
+.bar{height:6px;background:var(--ink);border-radius:3px;overflow:hidden;margin-top:4px}.bar i{display:block;height:100%;background:var(--marquee)}
+.poll{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--panel2)}
+.poll button.opt{display:block;width:100%;text-align:left;margin-top:6px;position:relative}
+.poll button.mine{border-color:var(--marquee)}
+table.sync{width:100%;border-collapse:collapse}table.sync td{padding:5px 0;border-bottom:1px solid var(--line)}table.sync td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+/* library */
+.library{grid-column:1;margin-top:4px}
+.library h3{font:600 20px var(--serif);margin:0 0 8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.chip{border-radius:20px;padding:3px 12px;font-size:13px}.chip.on{background:var(--marquee);color:#1d1500;border-color:var(--marquee)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.card h4{margin:0;font:600 16px var(--serif)}
+.card p{margin:0;font-size:13px;color:var(--muted);flex:1}
+.card .why{color:var(--marquee);font-size:12px}
+.card .acts{display:flex;gap:6px;flex-wrap:wrap}
+.filters{display:flex;gap:8px;flex-wrap:wrap}.filters>*{width:auto;flex:1;min-width:140px}
+@media (max-width:980px){#app{grid-template-columns:1fr}aside{position:static;max-height:none;min-height:420px}}
+</style>
+</head>
+<body>
+
+<section id="lobby">
+  <div class="ticket">
+    <h1>Watch Party</h1>
+    <div class="muted">Press play once. Everyone sees it together.</div>
+    <div class="row"><input id="name" placeholder="Your name" maxlength="24" aria-label="Your name"></div>
+    <div class="row"><button class="primary" id="create" style="flex:1">Create a room</button></div>
+    <hr>
+    <div class="row" style="margin-top:0"><input id="code" placeholder="Room code" maxlength="5" aria-label="Room code" style="text-transform:uppercase;letter-spacing:.2em"><button id="join">Join room</button></div>
+    <div id="lobbyErr" role="alert"></div>
+  </div>
+</section>
+
+<main id="app" class="hidden">
+  <header>
+    <h2>Watch Party</h2>
+    <div class="stub"><span class="muted">Room</span><b id="roomCode"></b><button class="sm" id="copy">Copy invite link</button></div>
+    <button class="sm ghost" id="leave">Leave</button>
+  </header>
+  <div id="banner" class="hidden" role="status"></div>
+
+  <section>
+    <div class="stage">
+      <video id="v" controls playsinline preload="auto"></video>
+      <div id="floaters"></div>
+      <div id="unlock" class="hidden"><button class="primary" id="unlockBtn">Tap to start synced playback</button></div>
+    </div>
+    <div class="nowrow"><h3 id="nowTitle">Nothing playing yet</h3><button class="sm" id="hot">Jump to hottest moment</button></div>
+    <canvas id="heat" title="Reaction heat: click to seek"></canvas>
+    <div class="reacts" id="reacts"></div>
+  </section>
+
+  <aside>
+    <div class="tabs" id="tabs"></div>
+    <div class="pane" id="pane"></div>
+  </aside>
+
+  <section class="library">
+    <h3>Find something to watch</h3>
+    <div class="filters">
+      <input id="q" placeholder="Search titles, moods, tags (typos are fine)" aria-label="Search movies">
+      <select id="dur" aria-label="Length"><option value="">Any length</option><option value="short">Under 5 min</option><option value="long">Over 5 min</option></select>
+      <select id="sort" aria-label="Sort"><option value="rel">Best match</option><option value="year">Newest</option><option value="len">Shortest</option></select>
+    </div>
+    <div class="chips" id="cats"></div>
+    <div id="recWrap"><h3 style="font-size:16px">Picked for this room</h3><div class="grid" id="rec"></div></div>
+    <h3 style="margin-top:16px">All titles</h3>
+    <div class="grid" id="results"></div>
+    <div class="card" style="margin-top:10px"><h4>Use your own video link</h4>
+      <div class="filters"><input id="customUrl" placeholder="https://… .mp4 / .webm"><input id="customTitle" placeholder="Title (optional)"></div>
+      <div class="acts"><button id="customPlay" class="primary sm">Play now</button><button id="customQueue" class="sm">Add to queue</button></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ============ catalog ============ */
+const G='https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/';
+const CATALOG=[
+ {id:'bbb',title:'Big Buck Bunny',cat:'Animation',year:2008,mins:10,tags:['comedy','family','bunny','nature','funny'],desc:'A giant rabbit gets even with three bullying rodents.',src:G+'BigBuckBunny.mp4',start:1},
+ {id:'ed',title:'Elephants Dream',cat:'Animation',year:2006,mins:11,tags:['surreal','fantasy','machines','strange'],desc:'Two men explore a strange mechanical world.',src:G+'ElephantsDream.mp4'},
+ {id:'sin',title:'Sintel',cat:'Fantasy',year:2010,mins:15,tags:['dragon','adventure','emotional','quest'],desc:'A lone warrior searches for the baby dragon she lost.',src:G+'Sintel.mp4',start:1},
+ {id:'toS',title:'Tears of Steel',cat:'Sci-Fi',year:2012,mins:12,tags:['robots','future','action','amsterdam'],desc:'Fighters try to save the world from killer robots.',src:G+'TearsOfSteel.mp4',start:1},
+ {id:'fbb',title:'For Bigger Blazes',cat:'Shorts',year:2013,mins:0.25,tags:['quick','fire','demo'],desc:'A 15-second burst to test your sync.',src:G+'ForBiggerBlazes.mp4'},
+ {id:'fbe',title:'For Bigger Escapes',cat:'Shorts',year:2013,mins:0.25,tags:['quick','travel','demo'],desc:'Another 15-second clip, good for queue tests.',src:G+'ForBiggerEscapes.mp4'},
+ {id:'fbf',title:'For Bigger Fun',cat:'Shorts',year:2013,mins:1,tags:['quick','fun','demo'],desc:'A very short, light clip.',src:G+'ForBiggerFun.mp4'},
+ {id:'fbj',title:'For Bigger Joyrides',cat:'Shorts',year:2013,mins:0.25,tags:['quick','cars','demo'],desc:'A short joyride.',src:G+'ForBiggerJoyrides.mp4'},
+ {id:'fbm',title:'For Bigger Meltdowns',cat:'Shorts',year:2013,mins:0.25,tags:['quick','demo'],desc:'A short clip with big moments.',src:G+'ForBiggerMeltdowns.mp4'},
+ {id:'sub',title:'Subaru Outback On Street And Dirt',cat:'Cars',year:2012,mins:10,tags:['cars','road','review','driving'],desc:'A car review on tarmac and gravel.',src:G+'SubaruOutbackOnStreetAndDirt.mp4'},
+ {id:'vw',title:'Volkswagen GTI Review',cat:'Cars',year:2012,mins:10,tags:['cars','review','hatchback','driving'],desc:'A hot-hatch road test.',src:G+'VolkswagenGTIReview.mp4'},
+ {id:'bull',title:'We Are Going On Bullrun',cat:'Cars',year:2012,mins:5,tags:['cars','road trip','rally','travel'],desc:'A road rally across the country.',src:G+'WeAreGoingOnBullrun.mp4'},
+ {id:'grand',title:'What Car Can You Get For A Grand',cat:'Cars',year:2012,mins:10,tags:['cars','budget','review','funny'],desc:'Hunting for a bargain car.',src:G+'WhatCarCanYouGetForAGrand.mp4'},
+];
+const EMOJI=['😂','❤️','🔥','👏','😮','😢','🎉','👀'];
+
+/* ============ helpers ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=t=>{t=Math.max(0,t|0);return (t/60|0)+':'+String(t%60).padStart(2,'0')};
+const pct=(a,p)=>{if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y);return s[Math.min(s.length-1,Math.ceil(p/100*s.length)-1)]};
+
+/* ============ state ============ */
+let ws,retry=0,leaving=false,myId=null,roomCode=null,room=null,pb={src:null,playing:false,pos:0,at:0},seq=0;
+let chat=[],reactionPos=[],tab='chat',cat='All',mute=0;
+let offset=0,rtt=0,samples=[],drift=0,hardFixes=0,reconnects=0,lat=[];
+const video=$('#v');
+const serverNow=()=>Date.now()+offset;
+const quiet=()=>performance.now()<mute;
+const expected=()=>{let p=pb.playing?pb.pos+(serverNow()-pb.at)/1000:pb.pos;if(video.duration&&p>video.duration)p=video.duration;return Math.max(0,p)};
+const sendMsg=o=>{if(ws&&ws.readyState===1){ws.send(JSON.stringify(o));return true}return false};
+const isHost=()=>room&&room.host===myId;
+
+/* ============ connection ============ */
+function connect(firstJoin){
+  ws=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
+  ws.onopen=()=>{
+    retry=0;banner('');
+    const id=roomCode&&sessionStorage.getItem('wp:'+roomCode);
+    sendMsg({t:'join',room:roomCode,name:$('#name').value,id:id||undefined});
+    startSync();
+  };
+  ws.onmessage=e=>handle(JSON.parse(e.data));
+  ws.onclose=()=>{
+    stopSync();
+    if(leaving)return;
+    if(!roomCode)return lobbyErr('Could not reach the server.');
+    reconnects++;banner('Connection lost. Reconnecting…');
+    setTimeout(()=>connect(),Math.min(5000,400*2**retry++));
+  };
+}
+function banner(t){const b=$('#banner');b.textContent=t;b.classList.toggle('hidden',!t)}
+function lobbyErr(t){$('#lobbyErr').textContent=t}
+
+/* clock sync: NTP-style, keep the lowest-RTT samples */
+let syncTimer;
+function ping(){const c=performance.now();sendMsg({t:'ping',c})}
+function startSync(){samples=[];ping();let n=0;clearInterval(syncTimer);syncTimer=setInterval(()=>{ping();if(++n%3===0)sendMsg({t:'stat',drift,rtt})},n<5?400:3000)}
+function stopSync(){clearInterval(syncTimer)}
+function onPong(m){
+  const r=performance.now()-m.c;
+  samples.push({r,o:m.s-(Date.now()-r/2)});if(samples.length>10)samples.shift();
+  const best=[...samples].sort((a,b)=>a.r-b.r)[0];
+  const old=offset;offset=best.o;rtt=best.r;
+  if(Math.abs(offset-old)>40&&pb.src)applyPb();
+}
+
+/* ============ message handling ============ */
+function handle(m){
+  switch(m.t){
+    case 'pong':return onPong(m);
+    case 'error':
+      if(!room){roomCode=null;leaving=true;ws.close();return lobbyErr(m.error)}
+      banner(m.error);return;
+    case 'joined':
+      myId=m.you;room=m.room;roomCode=room.code;seq=m.seq;pb=m.pb;chat=m.chat;reactionPos=m.reactions;
+      sessionStorage.setItem('wp:'+roomCode,myId);
+      history.replaceState(null,'','/r/'+roomCode);
+      $('#lobby').classList.add('hidden');$('#app').classList.remove('hidden');
+      $('#roomCode').textContent=roomCode;
+      renderAll();applyPb();return;
+    case 'room':room=m.room;renderSide();renderRec();return;
+    case 'pb':
+      if(m.seq<=seq)return; // stale or duplicate: ignore
+      seq=m.seq;pb=m.pb;
+      if(m.act!=='load'&&m.sent&&m.by!==myId){lat.push(Math.max(0,serverNow()-m.sent));if(lat.length>200)lat.shift()}
+      if(m.act==='load'){reactionPos=[];drawHeat()}
+      applyPb();renderNow();
+      if(m.by!==myId&&m.by!=='server'&&m.act!=='load')toast(m);
+      return;
+    case 'chat':case 'sys':chat.push(m);if(chat.length>200)chat.shift();if(tab==='chat')renderChat();return;
+    case 'react':floatEmoji(m);reactionPos.push(m.pos);drawHeat();return;
+    case 'denied':banner(m.text);setTimeout(()=>banner(''),2500);return;
+  }
+}
+function toast(m){/* small system line so people know who did what */
+  const who=room.members.find(x=>x.id===m.by);if(!who)return;
+  const txt=m.act==='seek'?`${who.name} jumped to ${fmt(m.pb.pos)}`:`${who.name} ${m.act==='play'?'played':'paused'}`;
+  chat.push({t:'sys',text:txt,ts:Date.now()});if(tab==='chat')renderChat();
+}
+
+/* ============ playback sync ============ */
+video.addEventListener('loadedmetadata',()=>{applyPb();drawHeat()});
+video.addEventListener('canplay',()=>applyPb());
+function applyPb(){
+  if(!pb.src){$('#nowTitle').textContent='Nothing playing yet';return}
+  if(video.dataset.src!==pb.src){video.dataset.src=pb.src;video.src=pb.src;video.load();return} // metadata handler re-enters
+  if(video.readyState<1)return;
+  const exp=expected();
+  mute=performance.now()+700; // don't echo programmatic changes back to the room
+  if(!pb.playing){
+    if(!video.paused)video.pause();
+    if(Math.abs(video.currentTime-pb.pos)>0.05)video.currentTime=pb.pos;
+    video.playbackRate=1;
+  }else{
+    if(Math.abs(video.currentTime-exp)>0.3)video.currentTime=exp;
+    if(video.paused)video.play().then(()=>$('#unlock').classList.add('hidden')).catch(()=>$('#unlock').classList.remove('hidden'));
+  }
+}
+$('#unlockBtn').onclick=()=>{$('#unlock').classList.add('hidden');applyPb();video.play().catch(()=>{})};
+
+/* user actions -> server */
+const ctl=(act)=>{if(quiet()||!pb.src)return;sendMsg({t:'ctl',act,pos:video.currentTime,sent:serverNow()})};
+video.addEventListener('play',()=>ctl('play'));
+video.addEventListener('pause',()=>{if(!video.ended)ctl('pause')});
+video.addEventListener('seeked',()=>ctl('seek'));
+video.addEventListener('ended',()=>sendMsg({t:'ended',src:pb.src}));
+
+/* drift detection and correction (every 500 ms while playing) */
+setInterval(()=>{
+  if(!pb.playing||video.paused||video.readyState<3||!pb.src)return;
+  const d=(video.currentTime-expected())*1000;drift=d;
+  if(Math.abs(d)>400){mute=performance.now()+700;video.currentTime=expected();video.playbackRate=1;hardFixes++}   // hard correct
+  else if(Math.abs(d)>60)video.playbackRate=d>0?0.94:1.06;                                                         // gentle catch-up / slow-down
+  else if(Math.abs(d)<25&&video.playbackRate!==1)video.playbackRate=1;
+},500);
+
+/* ============ reactions & heat strip ============ */
+$('#reacts').innerHTML=EMOJI.map(e=>`<button aria-label="React ${e}">${e}</button>`).join('');
+$('#reacts').onclick=e=>{const b=e.target.closest('button');if(b)sendMsg({t:'react',emoji:b.textContent})};
+function floatEmoji(m){
+  const el=document.createElement('div');el.className='float';el.style.left=(8+Math.random()*80)+'%';
+  el.innerHTML=`${esc(m.emoji)}<small>${esc(m.name)}</small>`;$('#floaters').appendChild(el);setTimeout(()=>el.remove(),2700);
+}
+const heat=$('#heat');
+function buckets(){const d=video.duration;if(!d||!isFinite(d))return null;const n=Math.max(1,Math.ceil(d/5)),b=new Array(n).fill(0);reactionPos.forEach(p=>{b[Math.min(n-1,p/5|0)]++});return b}
+function drawHeat(){
+  const w=heat.clientWidth,h=heat.clientHeight,dpr=devicePixelRatio||1;heat.width=w*dpr;heat.height=h*dpr;
+  const c=heat.getContext('2d');c.scale(dpr,dpr);c.clearRect(0,0,w,h);
+  const b=buckets();if(!b){c.fillStyle='#a094b8';c.fillText('Reactions show up here as the video plays',10,27);return}
+  const max=Math.max(1,...b),bw=w/b.length;
+  b.forEach((v,i)=>{const bh=Math.max(2,v/max*(h-6));c.fillStyle=v?'#ffc83d':'#3a3050';c.fillRect(i*bw,h-bh,Math.max(1,bw-1),bh)});
+  const x=video.currentTime/video.duration*w;c.fillStyle='#fff';c.fillRect(x,0,2,h);
+}
+setInterval(drawHeat,1000);addEventListener('resize',drawHeat);
+heat.onclick=e=>{if(!video.duration)return;const t=e.offsetX/heat.clientWidth*video.duration;sendMsg({t:'ctl',act:'seek',pos:t,sent:serverNow()})};
+$('#hot').onclick=()=>{const b=buckets();if(!b)return;const i=b.indexOf(Math.max(...b));if(b[i]>0)sendMsg({t:'ctl',act:'seek',pos:Math.max(0,i*5-2),sent:serverNow()})};
+
+/* ============ sidebar ============ */
+const TABS=[['chat','Chat'],['queue','Queue'],['polls','Polls'],['people','People'],['sync','Sync health']];
+function renderTabs(){$('#tabs').innerHTML=TABS.map(([k,l])=>`<button data-k="${k}" class="${k===tab?'on':''}">${l}</button>`).join('')}
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b){tab=b.dataset.k;renderSide()}};
+function renderSide(){renderTabs();({chat:renderChatPane,queue:renderQueue,polls:renderPolls,people:renderPeople,sync:renderSync})[tab]()}
+
+function renderChatPane(){
+  $('#pane').innerHTML=`<div id="chatLog"></div>`;
+  if(!document.getElementById('chatForm')){ // keep the form (and any half-typed text) across re-renders
+    const f=document.createElement('form');f.id='chatForm';f.className='chatForm';
+    f.innerHTML=`<input id="chatIn" placeholder="Say something…" maxlength="500" autocomplete="off"><button class="primary">Send</button>`;
+    $('aside').appendChild(f);
+    f.onsubmit=e=>{e.preventDefault();const i=$('#chatIn');if(i.value.trim())sendMsg({t:'chat',text:i.value});i.value=''};
+  }
+  renderChat();
+}
+function renderChat(){
+  const log=$('#chatLog');if(!log)return;const pane=$('#pane'),atEnd=pane.scrollTop+pane.clientHeight>=pane.scrollHeight-30;
+  log.innerHTML=chat.map(m=>m.t==='sys'?`<div class="msg sys">${esc(m.text)}</div>`:`<div class="msg"><b>${esc(m.name)}</b> ${esc(m.text)}</div>`).join('')||'<div class="muted">No messages yet.</div>';
+  if(atEnd)pane.scrollTop=pane.scrollHeight;
+}
+const leaveChatForm=()=>{const f=document.getElementById('chatForm');if(f&&tab!=='chat')f.remove()};
+
+function renderQueue(){
+  leaveChatForm();
+  const q=room.playlist;
+  $('#pane').innerHTML=(q.length?q.map(it=>`<div class="item"><div class="grow"><div><b>${esc(it.title)}</b></div><div class="muted" style="font-size:12px">added by ${esc(it.by)}</div></div>
+    <button class="sm ${it.votes.includes(myId)?'primary':''}" data-a="vote" data-id="${it.id}">▲ ${it.votes.length}</button>
+    <button class="sm" data-a="plplay" data-id="${it.id}">Play</button><button class="sm ghost" data-a="plrm" data-id="${it.id}" aria-label="Remove">✕</button></div>`).join('')
+    :'<div class="muted">The queue is empty. Add titles from the library below. The most-voted title plays next.</div>');
+}
+function renderPolls(){
+  leaveChatForm();
+  const polls=[...room.polls].reverse();
+  const keepQ=($('#pq')||{}).value||'',keepO=($('#po')||{}).value||'';
+  $('#pane').innerHTML=`<div class="poll"><b>Start a poll</b>
+    <input id="pq" placeholder="Question" style="margin-top:6px"><textarea id="po" rows="3" placeholder="One option per line" style="margin-top:6px"></textarea>
+    <div style="display:flex;gap:6px;margin-top:6px"><button class="primary sm" data-a="pollnew">Create poll</button><button class="sm" data-a="pollmovie">Poll: what should we watch next?</button></div></div>`+
+  polls.map(p=>{const tot=p.opts.reduce((n,o)=>n+o.votes.length,0);return `<div class="poll"><b>${esc(p.q)}</b> <span class="muted">${p.open?'open':'closed'}</span>`+
+    p.opts.map((o,i)=>`<button class="opt ${o.votes.includes(myId)?'mine':''}" ${p.open?'':'disabled'} data-a="pollvote" data-id="${p.id}" data-i="${i}">${esc(o.label)} <span class="muted">(${o.votes.length})</span><div class="bar"><i style="width:${tot?o.votes.length/tot*100:0}%"></i></div></button>`).join('')+
+    (p.open&&(isHost()||p.by===myName())?`<button class="sm" style="margin-top:8px" data-a="pollclose" data-id="${p.id}">Close poll</button>`:'')+`</div>`}).join('');
+  $('#pq').value=keepQ;$('#po').value=keepO;
+}
+const myName=()=>(room.members.find(m=>m.id===myId)||{}).name;
+function renderPeople(){
+  leaveChatForm();
+  $('#pane').innerHTML=(isHost()?`<label class="item"><input type="checkbox" id="hostOnly" style="width:auto" ${room.hostOnly?'checked':''}> <span>Only the host controls playback</span></label>`:'')+
+  room.members.map(m=>`<div class="item"><span class="dot ${m.online?'':'off'}"></span><div class="grow"><div>${esc(m.name)}${m.id===myId?' (you)':''}${m.id===room.host?' · host':''}</div></div>${isHost()&&m.id!==myId?`<button class="sm" data-a="host" data-id="${m.id}">Make host</button>`:''}</div>`).join('');
+  const h=$('#hostOnly');if(h)h.onchange=()=>sendMsg({t:'settings',hostOnly:h.checked});
+}
+function renderSync(){
+  leaveChatForm();
+  const rows=[['Round trip to server',rtt.toFixed(0)+' ms'],['Clock offset',offset.toFixed(0)+' ms'],['Current drift',(drift>=0?'+':'')+drift.toFixed(0)+' ms'],['Playback rate',video.playbackRate.toFixed(2)+'x'],
+   ['Hard corrections',hardFixes],['Reconnects',reconnects],['Control latency p50',pct(lat,50).toFixed(0)+' ms'],['Control latency p95',pct(lat,95).toFixed(0)+' ms'],['Samples',lat.length]];
+  $('#pane').innerHTML='<table class="sync">'+rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')+'</table><p class="muted" style="font-size:13px">Latency counts the time from another person pressing a control to it reaching you. Drift is how far your video is from the room clock.</p>';
+}
+setInterval(()=>{if(tab==='sync'&&room)renderSync()},1000);
+
+$('#pane').onclick=e=>{
+  const b=e.target.closest('[data-a]');if(!b)return;const id=b.dataset.id,a=b.dataset.a;
+  if(a==='vote')sendMsg({t:'pl_vote',id});
+  if(a==='plplay')sendMsg({t:'pl_play',id});
+  if(a==='plrm')sendMsg({t:'pl_remove',id});
+  if(a==='host')sendMsg({t:'transfer',to:id});
+  if(a==='pollvote')sendMsg({t:'poll_vote',id,idx:+b.dataset.i});
+  if(a==='pollclose')sendMsg({t:'poll_close',id});
+  if(a==='pollnew'){const opts=$('#po').value.split('\n').map(s=>({label:s.trim()})).filter(o=>o.label);sendMsg({t:'poll_new',q:$('#pq').value,opts})}
+  if(a==='pollmovie'){const w=watchedIds();const c=CATALOG.filter(x=>!w.has(x.id)).sort(()=>Math.random()-.5).slice(0,4);
+    sendMsg({t:'poll_new',q:'What should we watch next?',opts:c.map(x=>({label:x.title,src:x.src}))})}
+};
+
+/* ============ library, filters, fuzzy search, recommendations ============ */
+function lev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let p=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return p[n]}
+function score(it,q){
+  const toks=q.toLowerCase().split(/\s+/).filter(Boolean);if(!toks.length)return 1;
+  const words=(it.title+' '+it.cat+' '+it.tags.join(' ')+' '+it.desc).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  let total=0;
+  for(const t of toks){let best=0;
+    for(const w of words){let s=0;
+      if(w===t)s=3;else if(w.startsWith(t))s=2.5;else if(t.length>2&&w.includes(t))s=2;
+      else if(t.length>3){const d=Math.min(lev(t,w),lev(t,w.slice(0,t.length)));const lim=t.length<=5?1:2;if(d<=lim)s=1.6-d*.4}
+      best=Math.max(best,s)}
+    if(!best)return 0;total+=best}
+  return total+(it.title.toLowerCase().includes(q.toLowerCase())?2:0);
+}
+const watchedIds=()=>{const s=new Set();(room?room.history:[]).forEach(h=>{const c=CATALOG.find(x=>x.src===h.src);if(c)s.add(c.id)});return s};
+function renderCats(){const cats=['All',...new Set(CATALOG.map(c=>c.cat))];$('#cats').innerHTML=cats.map(c=>`<button class="chip ${c===cat?'on':''}" data-c="${c}">${c}</button>`).join('')}
+$('#cats').onclick=e=>{const b=e.target.closest('button');if(b){cat=b.dataset.c;renderCats();renderResults()}};
+function cardHtml(it,why){return `<div class="card"><h4>${esc(it.title)}</h4><div class="muted" style="font-size:12px">${it.cat} · ${it.year} · ${it.mins<1?Math.round(it.mins*60)+' sec':it.mins+' min'}</div>
+  <p>${esc(it.desc)}</p>${why?`<div class="why">${esc(why)}</div>`:''}
+  <div class="acts"><button class="primary sm" data-a="play" data-id="${it.id}">Play now</button><button class="sm" data-a="queue" data-id="${it.id}">Add to queue</button></div></div>`}
+function renderResults(){
+  const q=$('#q').value,d=$('#dur').value,s=$('#sort').value;
+  let list=CATALOG.filter(i=>(cat==='All'||i.cat===cat)&&(!d||(d==='short'?i.mins<5:i.mins>=5))).map(i=>({i,sc:score(i,q)})).filter(x=>x.sc>0);
+  if(s==='rel'&&q)list.sort((a,b)=>b.sc-a.sc);else if(s==='year')list.sort((a,b)=>b.i.year-a.i.year);else if(s==='len')list.sort((a,b)=>a.i.mins-b.i.mins);
+  $('#results').innerHTML=list.map(x=>cardHtml(x.i)).join('')||'<div class="muted">Nothing matches. Try fewer words or another category.</div>';
+}
+function renderRec(){
+  if(!room)return;
+  const w=watchedIds(),src=[...w].map(id=>CATALOG.find(c=>c.id===id));
+  room.playlist.forEach(p=>{const c=CATALOG.find(x=>x.src===p.src);if(c&&!src.includes(c))src.push(c)});
+  let recs;
+  if(src.length){
+    recs=CATALOG.filter(c=>!w.has(c.id)).map(c=>{let best=0,from=null;src.forEach(s=>{const sc=c.tags.filter(t=>s.tags.includes(t)).length*2+(c.cat===s.cat?1.5:0);if(sc>best){best=sc;from=s}});return{c,best,why:from?`Because of ${from.title}`:''}}).filter(x=>x.best>0).sort((a,b)=>b.best-a.best);
+  }else recs=CATALOG.filter(c=>c.start).map(c=>({c,why:'A good first pick'}));
+  recs=recs.slice(0,4);
+  $('#recWrap').classList.toggle('hidden',!recs.length);
+  $('#rec').innerHTML=recs.map(r=>cardHtml(r.c,r.why)).join('');
+}
+function libClick(e){
+  const b=e.target.closest('[data-a]');if(!b)return;const it=CATALOG.find(c=>c.id===b.dataset.id);if(!it)return;
+  if(b.dataset.a==='play')sendMsg({t:'load',src:it.src,title:it.title});
+  if(b.dataset.a==='queue')sendMsg({t:'pl_add',src:it.src,title:it.title});
+}
+$('#results').onclick=libClick;$('#rec').onclick=libClick;
+['q','dur','sort'].forEach(id=>$('#'+id).addEventListener('input',renderResults));
+$('#customPlay').onclick=()=>{sendMsg({t:'load',src:$('#customUrl').value.trim(),title:$('#customTitle').value||$('#customUrl').value})};
+$('#customQueue').onclick=()=>{sendMsg({t:'pl_add',src:$('#customUrl').value.trim(),title:$('#customTitle').value||$('#customUrl').value})};
+
+function renderNow(){$('#nowTitle').textContent=pb.title||'Nothing playing yet';renderRec()}
+function renderAll(){renderNow();renderSide();renderCats();renderResults();renderRec()}
+
+/* ============ lobby ============ */
+$('#name').value=localStorage.getItem('wp:name')||'';
+const urlCode=(location.pathname.match(/^\/r\/([A-Za-z0-9]{5})/)||[])[1];if(urlCode)$('#code').value=urlCode.toUpperCase();
+function start(code){
+  const n=$('#name').value.trim();if(!n)return lobbyErr('Enter a name first.');
+  localStorage.setItem('wp:name',n);lobbyErr('');leaving=false;roomCode=code||null;connect(true);
+}
+$('#create').onclick=()=>start(null);
+$('#join').onclick=()=>{const c=$('#code').value.trim().toUpperCase();if(c.length!==5)return lobbyErr('Room codes have 5 characters.');start(c)};
+$('#copy').onclick=async()=>{const u=location.origin+'/r/'+roomCode;try{await navigator.clipboard.writeText(u);$('#copy').textContent='Copied'}catch{prompt('Copy this link',u)}setTimeout(()=>$('#copy').textContent='Copy invite link',1500)};
+$('#leave').onclick=()=>{leaving=true;sessionStorage.removeItem('wp:'+roomCode);location.href='/'};
+</script>
+</body>
+</html>

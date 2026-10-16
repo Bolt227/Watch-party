@@ -1,0 +1,13 @@
+{
+  "name": "watch-party",
+  "version": "1.0.0",
+  "description": "Real-time synchronized watch party",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "bench": "node bench.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
